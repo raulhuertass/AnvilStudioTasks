@@ -10,6 +10,12 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { friendlyError } from "@/lib/errors";
+import {
+  EMPTY_FILTERS,
+  hasActiveFilters,
+  matchesFilters,
+  type IssueFilters,
+} from "@/lib/filters";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/supabase/database.types";
 import {
@@ -65,6 +71,10 @@ type WorkspaceValue = WorkspaceData & {
   closeSprint: (id: string) => Promise<void>;
   deleteSprint: (id: string) => Promise<void>;
   selectedIssueId: string | null;
+  filters: IssueFilters;
+  setFilters: (filters: IssueFilters) => void;
+  filtersActive: boolean;
+  visibleIssues: Issue[];
   openIssue: (id: string | null) => void;
 };
 
@@ -90,6 +100,13 @@ export function WorkspaceProvider({
   const [sprints, setSprints] = useState(initial.sprints);
   const [issues, setIssues] = useState(initial.issues);
   const [selectedIssueId, openIssue] = useState<string | null>(null);
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+
+  const filtersActive = hasActiveFilters(filters);
+  const visibleIssues = useMemo(
+    () => issues.filter((issue) => matchesFilters(issue, filters, project.clave)),
+    [issues, filters, project.clave],
+  );
 
   const isAdmin = members.some((m) => m.user_id === currentUserId && m.rol === "admin");
   const activeSprint = useMemo(() => sprints.find((s) => s.estado === "activo") ?? null, [sprints]);
@@ -261,7 +278,11 @@ export function WorkspaceProvider({
       closeSprint,
       deleteSprint,
       selectedIssueId,
+      filters,
+      filtersActive,
+      visibleIssues,
       openIssue,
+      setFilters,
     }),
     [
       project,
@@ -283,7 +304,11 @@ export function WorkspaceProvider({
       closeSprint,
       deleteSprint,
       selectedIssueId,
+      filters,
+      filtersActive,
+      visibleIssues,
       openIssue,
+      setFilters,
     ],
   );
 

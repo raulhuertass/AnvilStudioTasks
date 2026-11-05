@@ -87,7 +87,7 @@ function Column({
 }
 
 export function Board({ onOpenIssue }: { onOpenIssue: (id: string) => void }) {
-  const { project, activeSprint, issues, updateIssue, updateIssues } = useWorkspace();
+  const { project, activeSprint, visibleIssues, updateIssue, updateIssues } = useWorkspace();
   const [activeId, setActiveId] = useState<string | null>(null);
   // Orden provisional mientras se arrastra una tarjeta.
   const [dragColumns, setDragColumns] = useState<Columns | null>(null);
@@ -99,8 +99,8 @@ export function Board({ onOpenIssue }: { onOpenIssue: (id: string) => void }) {
   );
 
   const sprintIssues = useMemo(
-    () => issues.filter((issue) => activeSprint && issue.sprint_id === activeSprint.id),
-    [issues, activeSprint],
+    () => visibleIssues.filter((issue) => activeSprint && issue.sprint_id === activeSprint.id),
+    [visibleIssues, activeSprint],
   );
 
   const issueById = useMemo(() => new Map(sprintIssues.map((issue) => [issue.id, issue])), [sprintIssues]);

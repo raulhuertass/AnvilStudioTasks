@@ -138,7 +138,7 @@ function SprintActions({ sprint, issueCount }: { sprint: Sprint; issueCount: num
 }
 
 export default function BacklogPage() {
-  const { issues, sprints } = useWorkspace();
+  const { visibleIssues: issues, filtersActive, sprints } = useWorkspace();
 
   const openSprints = useMemo(
     () =>
@@ -186,7 +186,7 @@ export default function BacklogPage() {
             <IssueList
               issues={sprintIssues}
               moveOptions={moveOptions}
-              empty="Sin tareas. Muévelas aquí desde el backlog."
+              empty={filtersActive ? "Ninguna tarea coincide con los filtros." : "Sin tareas. Muévelas aquí desde el backlog."}
             />
           </section>
         );
@@ -199,7 +199,7 @@ export default function BacklogPage() {
           </h2>
           <CreateIssueDialog sprintId={null} />
         </div>
-        <IssueList issues={backlogIssues} moveOptions={moveOptions} empty="El backlog está vacío." />
+        <IssueList issues={backlogIssues} moveOptions={moveOptions} empty={filtersActive ? "Ninguna tarea coincide con los filtros." : "El backlog está vacío."} />
       </section>
     </main>
   );
