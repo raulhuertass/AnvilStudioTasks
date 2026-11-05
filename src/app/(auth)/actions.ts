@@ -1,7 +1,8 @@
 "use server";
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { RECOVERY_COOKIE, RECOVERY_PATH } from "@/lib/password-recovery";
 import { safeNextPath } from "@/lib/safe-next";
 import { createClient } from "@/lib/supabase/server";
 
@@ -74,6 +75,66 @@ export async function signup(_: AuthFormState, formData: FormData): Promise<Auth
   if (data.session) redirect("/projects");
 
   return { message: "Te hemos enviado un email. Ábrelo para confirmar tu cuenta y poder entrar." };
+}
+
+export async function requestPasswordReset(
+  _: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const email = String(formData.get("email") ?? "").trim();
+  if (!email) return { error: "Escribe tu email." };
+
+  const origin = (await headers()).get("origin");
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: origin ? `${origin}/auth/callback?next=${RECOVERY_PATH}` : undefined,
+  });
+
+  if (error?.code === "over_email_send_rate_limit" || error?.code === "over_request_rate_limit") {
+    return { error: authErrorMessage(error.code, ""), email };
+  }
+  if (error?.code === "email_address_invalid" || error?.code === "validation_failed") {
+    return { error: "Ese email no es válido.", email };
+  }
+  if (error && error.status && error.status >= 500) {
+    return { error: "No se ha podido enviar el email. Inténtalo más tarde.", email };
+  }
+
+  // Misma respuesta exista o no la cuenta, para no revelar qué emails están registrados.
+  return {
+    message:
+      "Si hay una cuenta con ese email, te hemos enviado un enlace. Ábrelo en este mismo navegador para elegir una contraseña nueva.",
+  };
+}
+
+export async function setRecoveredPassword(
+  _: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const password = String(formData.get("password") ?? "");
+  const repeated = String(formData.get("repeated") ?? "");
+
+  if (password.length < 8) return { error: "La contraseña debe tener al menos 8 caracteres." };
+  if (password !== repeated) return { error: "Las dos contraseñas no coinciden." };
+
+  const cookieStore = await cookies();
+  if (!cookieStore.has(RECOVERY_COOKIE)) redirect("/recuperar?aviso=caducado");
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) {
+    return {
+      error:
+        error.code === "same_password"
+          ? "La nueva contraseña debe ser distinta de la anterior."
+          : authErrorMessage(error.code, "No se ha podido guardar la contraseña. Inténtalo de nuevo."),
+    };
+  }
+
+  // La recuperación puede deberse a un acceso ajeno: se cierran las demás sesiones.
+  await supabase.auth.signOut({ scope: "others" });
+  cookieStore.delete(RECOVERY_COOKIE);
+  redirect("/projects");
 }
 
 export async function logout() {

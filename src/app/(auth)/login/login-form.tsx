@@ -38,7 +38,15 @@ export function LoginForm() {
         <Input id="email" name="email" type="email" autoComplete="email" defaultValue={state.email} key={state.email} required />
       </div>
       <div className="flex flex-col gap-2">
-        <Label htmlFor="password">Contraseña</Label>
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor="password">Contraseña</Label>
+          <Link
+            href="/recuperar"
+            className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            ¿Has olvidado tu contraseña?
+          </Link>
+        </div>
         <Input id="password" name="password" type="password" autoComplete="current-password" required />
       </div>
       <SubmitButton className="w-full">Entrar</SubmitButton>

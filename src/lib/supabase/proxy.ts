@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { RECOVERY_COOKIE, RECOVERY_PATH } from "@/lib/password-recovery";
 import type { Database } from "./database.types";
 import { getSupabaseEnv } from "./env";
 
@@ -40,7 +41,15 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname, search } = request.nextUrl;
   const isAuthPage = AUTH_PAGES.includes(pathname);
-  const isPublic = isAuthPage || pathname.startsWith("/auth/");
+  const isPublic = isAuthPage || pathname === "/recuperar" || pathname.startsWith("/auth/");
+
+  if (pathname === RECOVERY_PATH && !request.cookies.has(RECOVERY_COOKIE)) {
+    const target = request.nextUrl.clone();
+    target.pathname = "/recuperar";
+    target.search = "";
+    target.searchParams.set("aviso", "caducado");
+    return redirectWithCookies(target, response);
+  }
 
   if (!user && !isPublic) {
     const target = request.nextUrl.clone();
