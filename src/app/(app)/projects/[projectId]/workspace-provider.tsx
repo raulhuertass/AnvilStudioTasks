@@ -45,6 +45,12 @@ export type NewIssue = {
   sprint_id: string | null;
 };
 
+export type NewSprint = {
+  nombre: string;
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+};
+
 type WorkspaceValue = WorkspaceData & {
   isAdmin: boolean;
   activeSprint: Sprint | null;
@@ -53,6 +59,12 @@ type WorkspaceValue = WorkspaceData & {
   createIssue: (input: NewIssue) => Promise<string | null>;
   updateIssue: (id: string, patch: IssueUpdate) => Promise<boolean>;
   updateIssues: (changes: { id: string; patch: IssueUpdate }[]) => Promise<boolean>;
+  createSprint: (input: NewSprint) => Promise<string | null>;
+  startSprint: (id: string) => Promise<void>;
+  closeSprint: (id: string) => Promise<void>;
+  deleteSprint: (id: string) => Promise<void>;
+  selectedIssueId: string | null;
+  openIssue: (id: string | null) => void;
 };
 
 const WorkspaceContext = createContext<WorkspaceValue | null>(null);
@@ -76,6 +88,7 @@ export function WorkspaceProvider({
   const [invitations, setInvitations] = useState(initial.invitations);
   const [sprints, setSprints] = useState(initial.sprints);
   const [issues, setIssues] = useState(initial.issues);
+  const [selectedIssueId, openIssue] = useState<string | null>(null);
 
   const isAdmin = members.some((m) => m.user_id === currentUserId && m.rol === "admin");
   const activeSprint = useMemo(() => sprints.find((s) => s.estado === "activo") ?? null, [sprints]);
@@ -154,6 +167,64 @@ export function WorkspaceProvider({
     [updateIssues],
   );
 
+  const createSprint = useCallback(
+    async (input: NewSprint) => {
+      const { data, error } = await supabase
+        .from("sprints")
+        .insert({ ...input, project_id: project.id })
+        .select("*")
+        .single();
+      if (error) return friendlyError(error, "No se ha podido crear el sprint.");
+      setSprints((current) =>
+        current.some((sprint) => sprint.id === data.id) ? current : [...current, data],
+      );
+      return null;
+    },
+    [supabase, project.id],
+  );
+
+  const startSprint = useCallback(
+    async (id: string) => {
+      const { error } = await supabase.rpc("start_sprint", { p_sprint_id: id });
+      if (error) {
+        toast.error(friendlyError(error, "No se ha podido iniciar el sprint."));
+        return;
+      }
+      toast.success("Sprint iniciado.");
+      await refreshAll();
+    },
+    [supabase, refreshAll],
+  );
+
+  const closeSprint = useCallback(
+    async (id: string) => {
+      const { data, error } = await supabase.rpc("close_sprint", { p_sprint_id: id });
+      if (error) {
+        toast.error(friendlyError(error, "No se ha podido cerrar el sprint."));
+        return;
+      }
+      toast.success(
+        data === 0
+          ? "Sprint cerrado."
+          : `Sprint cerrado. ${data === 1 ? "1 tarea sin terminar ha vuelto" : `${data} tareas sin terminar han vuelto`} al backlog.`,
+      );
+      await refreshAll();
+    },
+    [supabase, refreshAll],
+  );
+
+  const deleteSprint = useCallback(
+    async (id: string) => {
+      const { error } = await supabase.from("sprints").delete().eq("id", id);
+      if (error) {
+        toast.error(friendlyError(error, "No se ha podido eliminar el sprint."));
+        return;
+      }
+      await refreshAll();
+    },
+    [supabase, refreshAll],
+  );
+
   const value = useMemo<WorkspaceValue>(
     () => ({
       project,
@@ -169,6 +240,12 @@ export function WorkspaceProvider({
       createIssue,
       updateIssue,
       updateIssues,
+      createSprint,
+      startSprint,
+      closeSprint,
+      deleteSprint,
+      selectedIssueId,
+      openIssue,
     }),
     [
       project,
@@ -184,6 +261,12 @@ export function WorkspaceProvider({
       createIssue,
       updateIssue,
       updateIssues,
+      createSprint,
+      startSprint,
+      closeSprint,
+      deleteSprint,
+      selectedIssueId,
+      openIssue,
     ],
   );
 
