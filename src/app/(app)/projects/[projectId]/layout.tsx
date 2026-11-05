@@ -3,6 +3,7 @@ import { Suspense, type ReactNode } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
 import { MEMBERS_SELECT, toMember } from "@/lib/types";
+import { IssueSheet } from "./issue-sheet";
 import { ProjectNav } from "./project-nav";
 import { WorkspaceProvider } from "./workspace-provider";
 
@@ -51,6 +52,7 @@ async function ProjectWorkspace({
     >
       <ProjectNav />
       {children}
+      <IssueSheet />
     </WorkspaceProvider>
   );
 }

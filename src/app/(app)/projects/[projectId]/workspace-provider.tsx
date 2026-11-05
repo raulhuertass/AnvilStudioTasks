@@ -59,6 +59,7 @@ type WorkspaceValue = WorkspaceData & {
   createIssue: (input: NewIssue) => Promise<string | null>;
   updateIssue: (id: string, patch: IssueUpdate) => Promise<boolean>;
   updateIssues: (changes: { id: string; patch: IssueUpdate }[]) => Promise<boolean>;
+  deleteIssue: (id: string) => Promise<boolean>;
   createSprint: (input: NewSprint) => Promise<string | null>;
   startSprint: (id: string) => Promise<void>;
   closeSprint: (id: string) => Promise<void>;
@@ -167,6 +168,20 @@ export function WorkspaceProvider({
     [updateIssues],
   );
 
+  const deleteIssue = useCallback(
+    async (id: string) => {
+      const { error } = await supabase.from("issues").delete().eq("id", id);
+      if (error) {
+        toast.error(friendlyError(error, "No se ha podido eliminar la tarea."));
+        return false;
+      }
+      setIssues((current) => current.filter((issue) => issue.id !== id));
+      openIssue((current) => (current === id ? null : current));
+      return true;
+    },
+    [supabase],
+  );
+
   const createSprint = useCallback(
     async (input: NewSprint) => {
       const { data, error } = await supabase
@@ -240,6 +255,7 @@ export function WorkspaceProvider({
       createIssue,
       updateIssue,
       updateIssues,
+      deleteIssue,
       createSprint,
       startSprint,
       closeSprint,
@@ -261,6 +277,7 @@ export function WorkspaceProvider({
       createIssue,
       updateIssue,
       updateIssues,
+      deleteIssue,
       createSprint,
       startSprint,
       closeSprint,
