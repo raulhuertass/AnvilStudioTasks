@@ -20,6 +20,7 @@ import { UserAvatar } from "@/components/user-avatar";
 import { friendlyError } from "@/lib/errors";
 import { createClient } from "@/lib/supabase/client";
 import type { ProjectRole } from "@/lib/types";
+import { DeleteProjectSection } from "../delete-project-section";
 import { useWorkspace } from "../workspace-provider";
 
 const ROLE_ITEMS = [
@@ -225,6 +226,8 @@ export default function MembersPage() {
           </ul>
         </section>
       )}
+
+      <DeleteProjectSection />
     </main>
   );
 }

@@ -1,3 +1,4 @@
+import { AnvilLogo } from "@/components/anvil-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
@@ -7,7 +8,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <ThemeToggle />
       </div>
       <div className="w-full max-w-sm">
-        <p className="mb-6 text-center text-lg font-semibold tracking-tight">Anvil Studio Tasks</p>
+        <p className="mb-6 flex items-center justify-center gap-2 text-lg font-semibold tracking-tight">
+          <AnvilLogo className="size-6" />
+          Anvil Studio Tasks
+        </p>
         {children}
       </div>
     </div>

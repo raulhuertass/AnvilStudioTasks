@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -72,6 +73,7 @@ type WorkspaceValue = WorkspaceData & {
   startSprint: (id: string) => Promise<void>;
   closeSprint: (id: string) => Promise<void>;
   deleteSprint: (id: string) => Promise<void>;
+  deleteProject: () => Promise<string | null>;
   connectionLost: boolean;
   selectedIssueId: string | null;
   filters: IssueFilters;
@@ -106,6 +108,7 @@ export function WorkspaceProvider({
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [connectionLost, setConnectionLost] = useState(false);
   const router = useRouter();
+  const deletingProject = useRef(false);
 
   const filtersActive = hasActiveFilters(filters);
   const visibleIssues = useMemo(
@@ -203,6 +206,24 @@ export function WorkspaceProvider({
     },
     [supabase],
   );
+
+  const deleteProject = useCallback(async () => {
+    deletingProject.current = true;
+    const { data, error } = await supabase
+      .from("projects")
+      .delete()
+      .eq("id", project.id)
+      .select("id");
+    // Sin permiso, RLS no da error: simplemente no borra ninguna fila.
+    if (error || data.length === 0) {
+      deletingProject.current = false;
+      return friendlyError(error, "No se ha podido eliminar el proyecto.");
+    }
+    toast.success("Proyecto eliminado.");
+    router.push("/projects");
+    router.refresh();
+    return null;
+  }, [supabase, project.id, router]);
 
   const createSprint = useCallback(
     async (input: NewSprint) => {
@@ -335,6 +356,7 @@ export function WorkspaceProvider({
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "project_members" }, ({ old }) => {
         if (old.project_id !== project.id) return;
         if (old.user_id === currentUserId) {
+          if (deletingProject.current) return;
           toast.info("Ya no eres miembro de este proyecto.");
           router.push("/projects");
           return;
@@ -377,6 +399,7 @@ export function WorkspaceProvider({
       startSprint,
       closeSprint,
       deleteSprint,
+      deleteProject,
       connectionLost,
       selectedIssueId,
       filters,
@@ -404,6 +427,7 @@ export function WorkspaceProvider({
       startSprint,
       closeSprint,
       deleteSprint,
+      deleteProject,
       connectionLost,
       selectedIssueId,
       filters,
