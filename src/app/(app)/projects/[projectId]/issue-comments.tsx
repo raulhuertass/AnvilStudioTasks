@@ -56,6 +56,42 @@ export function IssueComments({ issueId }: { issueId: string }) {
     };
   }, [supabase, issueId]);
 
+  // Comentarios de otros usuarios en esta tarea.
+  useEffect(() => {
+    const channel = supabase
+      .channel(`comments:${issueId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "comments", filter: `issue_id=eq.${issueId}` },
+        ({ new: row }) => {
+          const comment = row as Comment;
+          setComments((current) =>
+            current?.some((item) => item.id === comment.id)
+              ? current
+              : [...(current ?? []), comment].sort(byDate),
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "comments", filter: `issue_id=eq.${issueId}` },
+        ({ new: row }) => {
+          const comment = row as Comment;
+          setComments(
+            (current) => current?.map((item) => (item.id === comment.id ? comment : item)) ?? null,
+          );
+        },
+      )
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "comments" }, ({ old }) => {
+        setComments((current) => current?.filter((item) => item.id !== old.id) ?? null);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, issueId]);
+
   async function submit(event?: FormEvent) {
     event?.preventDefault();
     const text = contenido.trim();

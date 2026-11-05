@@ -4,10 +4,12 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { friendlyError } from "@/lib/errors";
 import {
@@ -70,6 +72,7 @@ type WorkspaceValue = WorkspaceData & {
   startSprint: (id: string) => Promise<void>;
   closeSprint: (id: string) => Promise<void>;
   deleteSprint: (id: string) => Promise<void>;
+  connectionLost: boolean;
   selectedIssueId: string | null;
   filters: IssueFilters;
   setFilters: (filters: IssueFilters) => void;
@@ -101,6 +104,8 @@ export function WorkspaceProvider({
   const [issues, setIssues] = useState(initial.issues);
   const [selectedIssueId, openIssue] = useState<string | null>(null);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [connectionLost, setConnectionLost] = useState(false);
+  const router = useRouter();
 
   const filtersActive = hasActiveFilters(filters);
   const visibleIssues = useMemo(
@@ -257,6 +262,101 @@ export function WorkspaceProvider({
     [supabase, refreshAll],
   );
 
+  // Cambios de otros usuarios. RLS filtra INSERT y UPDATE en el servidor. Los
+  // DELETE no admiten filtro y solo traen la clave primaria: se ignoran si no
+  // corresponden a una fila conocida.
+  useEffect(() => {
+    const byProject = `project_id=eq.${project.id}`;
+    let wasConnected = false;
+
+    const channel = supabase
+      .channel(`project:${project.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "issues", filter: byProject },
+        ({ new: row }) => {
+          const issue = row as Issue;
+          setIssues((current) =>
+            current.some((item) => item.id === issue.id) ? current : [...current, issue],
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "issues", filter: byProject },
+        ({ new: row }) => {
+          const issue = row as Issue;
+          setIssues((current) =>
+            current.map((item) =>
+              // Un evento atrasado no debe pisar un estado más reciente.
+              item.id === issue.id && issue.updated_at >= item.updated_at ? issue : item,
+            ),
+          );
+        },
+      )
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "issues" }, ({ old }) => {
+        setIssues((current) => current.filter((item) => item.id !== old.id));
+      })
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "sprints", filter: byProject },
+        ({ new: row }) => {
+          const sprint = row as Sprint;
+          setSprints((current) =>
+            current.some((item) => item.id === sprint.id) ? current : [...current, sprint],
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "sprints", filter: byProject },
+        ({ new: row }) => {
+          const sprint = row as Sprint;
+          setSprints((current) => current.map((item) => (item.id === sprint.id ? sprint : item)));
+        },
+      )
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "sprints" }, ({ old }) => {
+        setSprints((current) => current.filter((item) => item.id !== old.id));
+      })
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "project_members", filter: byProject },
+        () => {
+          refreshMembers();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "project_members", filter: byProject },
+        () => {
+          refreshMembers();
+        },
+      )
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "project_members" }, ({ old }) => {
+        if (old.project_id !== project.id) return;
+        if (old.user_id === currentUserId) {
+          toast.info("Ya no eres miembro de este proyecto.");
+          router.push("/projects");
+          return;
+        }
+        refreshMembers();
+      })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          setConnectionLost(false);
+          // Al reconectar se recupera lo que haya cambiado mientras tanto.
+          if (wasConnected) refreshAll();
+          wasConnected = true;
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          setConnectionLost(true);
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, project.id, currentUserId, router, refreshMembers, refreshAll]);
+
   const value = useMemo<WorkspaceValue>(
     () => ({
       project,
@@ -277,6 +377,7 @@ export function WorkspaceProvider({
       startSprint,
       closeSprint,
       deleteSprint,
+      connectionLost,
       selectedIssueId,
       filters,
       filtersActive,
@@ -303,6 +404,7 @@ export function WorkspaceProvider({
       startSprint,
       closeSprint,
       deleteSprint,
+      connectionLost,
       selectedIssueId,
       filters,
       filtersActive,

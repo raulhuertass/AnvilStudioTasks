@@ -7,8 +7,7 @@ import { FilterBar } from "./filter-bar";
 import { useWorkspace } from "./workspace-provider";
 
 export function ProjectNav() {
-  const { project } = useWorkspace();
-  const connectionLost = false;
+  const { project, connectionLost } = useWorkspace();
   const pathname = usePathname();
   const base = `/projects/${project.id}`;
   const links = [
