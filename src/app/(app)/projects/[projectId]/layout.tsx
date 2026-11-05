@@ -24,13 +24,16 @@ async function ProjectWorkspace({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [project, members, invitations] = await Promise.all([
+  const [project, members, invitations, sprints, issues] = await Promise.all([
     supabase.from("projects").select("*").eq("id", projectId).maybeSingle(),
     supabase.from("project_members").select(MEMBERS_SELECT).eq("project_id", projectId),
     supabase.from("project_invitations").select("*").eq("project_id", projectId),
+    supabase.from("sprints").select("*").eq("project_id", projectId),
+    supabase.from("issues").select("*").eq("project_id", projectId),
   ]);
 
-  const failure = project.error ?? members.error ?? invitations.error;
+  const failure =
+    project.error ?? members.error ?? invitations.error ?? sprints.error ?? issues.error;
   if (failure) throw new Error(failure.message);
   if (!project.data) notFound();
 
@@ -42,6 +45,8 @@ async function ProjectWorkspace({
         currentUserId: user.id,
         members: (members.data ?? []).map(toMember),
         invitations: invitations.data ?? [],
+        sprints: sprints.data ?? [],
+        issues: issues.data ?? [],
       }}
     >
       <ProjectNav />
