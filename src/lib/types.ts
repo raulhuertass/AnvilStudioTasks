@@ -6,6 +6,7 @@ type Enums = Database["public"]["Enums"];
 export type Project = Tables["projects"]["Row"];
 export type Sprint = Tables["sprints"]["Row"];
 export type Issue = Tables["issues"]["Row"];
+export type IssueAssignee = Tables["issue_assignees"]["Row"];
 export type Comment = Tables["comments"]["Row"];
 export type Invitation = Tables["project_invitations"]["Row"];
 

@@ -26,6 +26,7 @@ import {
   toMember,
   type Invitation,
   type Issue,
+  type IssueAssignee,
   type Member,
   type Project,
   type Sprint,
@@ -38,19 +39,22 @@ export type WorkspaceData = {
   invitations: Invitation[];
   sprints: Sprint[];
   issues: Issue[];
+  assignees: IssueAssignee[];
 };
 
 type IssueUpdate = Pick<
   Database["public"]["Tables"]["issues"]["Update"],
-  "titulo" | "descripcion" | "tipo" | "prioridad" | "estado" | "assignee_id" | "sprint_id" | "posicion"
+  "titulo" | "descripcion" | "tipo" | "prioridad" | "estado" | "sprint_id" | "posicion"
 >;
+
+const NO_ASSIGNEES: string[] = [];
 
 export type NewIssue = {
   titulo: string;
   descripcion: string | null;
   tipo: Issue["tipo"];
   prioridad: Issue["prioridad"];
-  assignee_id: string | null;
+  assignee_ids: string[];
   sprint_id: string | null;
 };
 
@@ -69,6 +73,8 @@ type WorkspaceValue = WorkspaceData & {
   updateIssue: (id: string, patch: IssueUpdate) => Promise<boolean>;
   updateIssues: (changes: { id: string; patch: IssueUpdate }[]) => Promise<boolean>;
   deleteIssue: (id: string) => Promise<boolean>;
+  assigneeIdsOf: (issueId: string) => string[];
+  setIssueAssignees: (issueId: string, next: string[]) => Promise<void>;
   createSprint: (input: NewSprint) => Promise<string | null>;
   startSprint: (id: string) => Promise<void>;
   closeSprint: (id: string) => Promise<void>;
@@ -104,6 +110,7 @@ export function WorkspaceProvider({
   const [invitations, setInvitations] = useState(initial.invitations);
   const [sprints, setSprints] = useState(initial.sprints);
   const [issues, setIssues] = useState(initial.issues);
+  const [assignees, setAssignees] = useState(initial.assignees);
   const [selectedIssueId, openIssue] = useState<string | null>(null);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [connectionLost, setConnectionLost] = useState(false);
@@ -111,9 +118,25 @@ export function WorkspaceProvider({
   const deletingProject = useRef(false);
 
   const filtersActive = hasActiveFilters(filters);
+  const assigneesByIssue = useMemo(() => {
+    const byIssue = new Map<string, string[]>();
+    assignees.forEach(({ issue_id, user_id }) => {
+      byIssue.set(issue_id, [...(byIssue.get(issue_id) ?? []), user_id]);
+    });
+    return byIssue;
+  }, [assignees]);
+
+  const assigneeIdsOf = useCallback(
+    (issueId: string) => assigneesByIssue.get(issueId) ?? NO_ASSIGNEES,
+    [assigneesByIssue],
+  );
+
   const visibleIssues = useMemo(
-    () => issues.filter((issue) => matchesFilters(issue, filters, project.clave)),
-    [issues, filters, project.clave],
+    () =>
+      issues.filter((issue) =>
+        matchesFilters(issue, assigneeIdsOf(issue.id), filters, project.clave),
+      ),
+    [issues, assigneeIdsOf, filters, project.clave],
   );
 
   const isAdmin = members.some((m) => m.user_id === currentUserId && m.rol === "admin");
@@ -129,17 +152,19 @@ export function WorkspaceProvider({
   }, [supabase, project.id]);
 
   const refreshAll = useCallback(async () => {
-    const [sprintsResult, issuesResult] = await Promise.all([
+    const [sprintsResult, issuesResult, assigneesResult] = await Promise.all([
       supabase.from("sprints").select("*").eq("project_id", project.id),
       supabase.from("issues").select("*").eq("project_id", project.id),
+      supabase.from("issue_assignees").select("*").eq("project_id", project.id),
     ]);
     if (sprintsResult.data) setSprints(sprintsResult.data);
     if (issuesResult.data) setIssues(issuesResult.data);
+    if (assigneesResult.data) setAssignees(assigneesResult.data);
     await refreshMembers();
   }, [supabase, project.id, refreshMembers]);
 
   const createIssue = useCallback(
-    async (input: NewIssue) => {
+    async ({ assignee_ids, ...input }: NewIssue) => {
       const { data, error } = await supabase
         .from("issues")
         .insert({ ...input, project_id: project.id })
@@ -149,9 +174,73 @@ export function WorkspaceProvider({
       setIssues((current) =>
         current.some((issue) => issue.id === data.id) ? current : [...current, data],
       );
+
+      if (assignee_ids.length > 0) {
+        const rows = assignee_ids.map((user_id) => ({
+          issue_id: data.id,
+          user_id,
+          project_id: project.id,
+        }));
+        const { error: assignError } = await supabase.from("issue_assignees").insert(rows);
+        if (assignError) {
+          // La tarea ya existe: no se devuelve error para no invitar a crearla otra vez.
+          toast.error("La tarea se ha creado, pero no se ha podido asignar.");
+        } else {
+          setAssignees((current) => [
+            ...current,
+            ...rows.filter(
+              (row) =>
+                !current.some(
+                  (item) => item.issue_id === row.issue_id && item.user_id === row.user_id,
+                ),
+            ),
+          ]);
+        }
+      }
       return null;
     },
     [supabase, project.id],
+  );
+
+  // Aplica el cambio al momento y recarga las asignaciones si la base de datos lo rechaza.
+  const setIssueAssignees = useCallback(
+    async (issueId: string, next: string[]) => {
+      const previous = assigneesByIssue.get(issueId) ?? NO_ASSIGNEES;
+      const added = next.filter((userId) => !previous.includes(userId));
+      const removed = previous.filter((userId) => !next.includes(userId));
+      if (added.length === 0 && removed.length === 0) return;
+
+      setAssignees((current) => [
+        ...current.filter((item) => item.issue_id !== issueId),
+        ...next.map((user_id) => ({ issue_id: issueId, user_id, project_id: project.id })),
+      ]);
+
+      const results = await Promise.all([
+        added.length > 0
+          ? supabase.from("issue_assignees").insert(
+              added.map((user_id) => ({ issue_id: issueId, user_id, project_id: project.id })),
+            )
+          : null,
+        removed.length > 0
+          ? supabase
+              .from("issue_assignees")
+              .delete()
+              .eq("issue_id", issueId)
+              .in("user_id", removed)
+          : null,
+      ]);
+
+      const failure = results.find((result) => result?.error)?.error;
+      if (failure) {
+        toast.error(friendlyError(failure, "No se ha podido cambiar la asignación."));
+        const { data } = await supabase
+          .from("issue_assignees")
+          .select("*")
+          .eq("project_id", project.id);
+        if (data) setAssignees(data);
+      }
+    },
+    [supabase, project.id, assigneesByIssue],
   );
 
   // Aplica el cambio al momento y lo deshace si la base de datos lo rechaza.
@@ -320,6 +409,25 @@ export function WorkspaceProvider({
       })
       .on(
         "postgres_changes",
+        { event: "INSERT", schema: "public", table: "issue_assignees", filter: byProject },
+        ({ new: row }) => {
+          const assignee = row as IssueAssignee;
+          setAssignees((current) =>
+            current.some(
+              (item) => item.issue_id === assignee.issue_id && item.user_id === assignee.user_id,
+            )
+              ? current
+              : [...current, assignee],
+          );
+        },
+      )
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "issue_assignees" }, ({ old }) => {
+        setAssignees((current) =>
+          current.filter((item) => item.issue_id !== old.issue_id || item.user_id !== old.user_id),
+        );
+      })
+      .on(
+        "postgres_changes",
         { event: "INSERT", schema: "public", table: "sprints", filter: byProject },
         ({ new: row }) => {
           const sprint = row as Sprint;
@@ -387,6 +495,9 @@ export function WorkspaceProvider({
       invitations,
       sprints,
       issues,
+      assignees,
+      assigneeIdsOf,
+      setIssueAssignees,
       isAdmin,
       activeSprint,
       refreshMembers,
@@ -415,6 +526,9 @@ export function WorkspaceProvider({
       invitations,
       sprints,
       issues,
+      assignees,
+      assigneeIdsOf,
+      setIssueAssignees,
       isAdmin,
       activeSprint,
       refreshMembers,

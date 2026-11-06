@@ -2,17 +2,16 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { UserAvatar } from "@/components/user-avatar";
 import { issueKey, priorityMeta, typeMeta } from "@/lib/issue-meta";
 import type { Issue } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { AssigneeAvatars } from "./assignee-avatars";
 import { useWorkspace } from "./workspace-provider";
 
 export function IssueCardContent({ issue, onOpen }: { issue: Issue; onOpen?: () => void }) {
-  const { project, members } = useWorkspace();
+  const { project } = useWorkspace();
   const type = typeMeta(issue.tipo);
   const priority = priorityMeta(issue.prioridad);
-  const assignee = members.find((member) => member.user_id === issue.assignee_id);
   const key = issueKey(project.clave, issue);
 
   return (
@@ -39,12 +38,8 @@ export function IssueCardContent({ issue, onOpen }: { issue: Issue; onOpen?: () 
           />
         </span>
         <span className="text-xs text-muted-foreground">{key}</span>
-        <span className="ml-auto" title={assignee ? assignee.nombre : "Sin asignar"}>
-          {assignee ? (
-            <UserAvatar nombre={assignee.nombre} avatarUrl={assignee.avatar_url} className="size-6" />
-          ) : (
-            <span className="block size-6 rounded-full border border-dashed" aria-label="Sin asignar" />
-          )}
+        <span className="ml-auto">
+          <AssigneeAvatars issueId={issue.id} />
         </span>
       </div>
     </>

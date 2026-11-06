@@ -34,11 +34,20 @@ export function hasActiveFilters(filters: IssueFilters) {
   );
 }
 
-export function matchesFilters(issue: Issue, filters: IssueFilters, clave: string) {
+export function matchesFilters(
+  issue: Issue,
+  assigneeIds: string[],
+  filters: IssueFilters,
+  clave: string,
+) {
   if (filters.tipo !== ALL && issue.tipo !== filters.tipo) return false;
   if (filters.prioridad !== ALL && issue.prioridad !== filters.prioridad) return false;
-  if (filters.asignado === UNASSIGNED && issue.assignee_id !== null) return false;
-  if (filters.asignado !== ALL && filters.asignado !== UNASSIGNED && issue.assignee_id !== filters.asignado) {
+  if (filters.asignado === UNASSIGNED && assigneeIds.length > 0) return false;
+  if (
+    filters.asignado !== ALL &&
+    filters.asignado !== UNASSIGNED &&
+    !assigneeIds.includes(filters.asignado)
+  ) {
     return false;
   }
 

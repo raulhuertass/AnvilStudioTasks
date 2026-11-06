@@ -13,13 +13,15 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Textarea } from "@/components/ui/textarea";
 import { issueKey, PRIORITIES, STATUSES, TYPES } from "@/lib/issue-meta";
 import type { Issue, IssuePriority, IssueStatus, IssueType } from "@/lib/types";
+import { AssigneeSelect } from "./assignee-select";
 import { IssueComments } from "./issue-comments";
 import { useWorkspace } from "./workspace-provider";
 
 const dateFormat = new Intl.DateTimeFormat("es-ES", { dateStyle: "medium", timeStyle: "short" });
 
 function IssueDetail({ issue }: { issue: Issue }) {
-  const { project, members, sprints, updateIssue, deleteIssue } = useWorkspace();
+  const { project, members, sprints, updateIssue, deleteIssue, assigneeIdsOf, setIssueAssignees } =
+    useWorkspace();
   // null = sin editar: se muestra el valor guardado, que puede cambiar en tiempo real.
   const [tituloDraft, setTituloDraft] = useState<string | null>(null);
   const [descripcionDraft, setDescripcionDraft] = useState<string | null>(null);
@@ -114,14 +116,10 @@ function IssueDetail({ issue }: { issue: Issue }) {
         </div>
         <div className="col-span-2 flex flex-col gap-2">
           <Label htmlFor="detail-asignado">Asignado</Label>
-          <FieldSelect
+          <AssigneeSelect
             id="detail-asignado"
-            value={issue.assignee_id ?? NONE}
-            options={[
-              { value: NONE, label: "Sin asignar" },
-              ...members.map((member) => ({ value: member.user_id, label: member.nombre })),
-            ]}
-            onChange={(next) => updateIssue(issue.id, { assignee_id: next === NONE ? null : next })}
+            value={assigneeIdsOf(issue.id)}
+            onChange={(next) => setIssueAssignees(issue.id, next)}
           />
         </div>
       </div>

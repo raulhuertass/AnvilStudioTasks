@@ -5,19 +5,18 @@ import { useMemo, useState } from "react";
 import { FieldSelect, NONE } from "@/components/field-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { UserAvatar } from "@/components/user-avatar";
 import { byPosition, issueKey, priorityMeta, STATUSES, typeMeta } from "@/lib/issue-meta";
 import type { Issue, Sprint } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { AssigneeAvatars } from "../assignee-avatars";
 import { CreateIssueDialog } from "../create-issue-dialog";
 import { CreateSprintDialog } from "../create-sprint-dialog";
 import { useWorkspace } from "../workspace-provider";
 
 function IssueRow({ issue, moveOptions }: { issue: Issue; moveOptions: { value: string; label: string }[] }) {
-  const { project, members, updateIssue, openIssue } = useWorkspace();
+  const { project, updateIssue, openIssue } = useWorkspace();
   const type = typeMeta(issue.tipo);
   const priority = priorityMeta(issue.prioridad);
-  const assignee = members.find((member) => member.user_id === issue.assignee_id);
   const key = issueKey(project.clave, issue);
   const status = STATUSES.find((item) => item.value === issue.estado)?.label;
 
@@ -41,13 +40,7 @@ function IssueRow({ issue, moveOptions }: { issue: Issue; moveOptions: { value: 
           aria-label={`Prioridad ${priority.label.toLowerCase()}`}
         />
       </span>
-      <span title={assignee ? assignee.nombre : "Sin asignar"}>
-        {assignee ? (
-          <UserAvatar nombre={assignee.nombre} avatarUrl={assignee.avatar_url} className="size-6" />
-        ) : (
-          <span className="block size-6 rounded-full border border-dashed" aria-label="Sin asignar" />
-        )}
-      </span>
+      <AssigneeAvatars issueId={issue.id} />
       <FieldSelect
         label={`Mover ${key}`}
         size="sm"

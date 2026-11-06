@@ -4,6 +4,7 @@ import { SearchIcon, XIcon } from "lucide-react";
 import { FieldSelect } from "@/components/field-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { UserAvatar } from "@/components/user-avatar";
 import { ALL, EMPTY_FILTERS, UNASSIGNED, type IssueFilters } from "@/lib/filters";
 import { PRIORITIES, TYPES } from "@/lib/issue-meta";
 import { useWorkspace } from "./workspace-provider";
@@ -38,7 +39,13 @@ export function FilterBar() {
         options={[
           { value: ALL, label: "Cualquier asignado" },
           { value: UNASSIGNED, label: "Sin asignar" },
-          ...members.map((member) => ({ value: member.user_id, label: member.nombre })),
+          ...[...members]
+            .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
+            .map((member) => ({
+              value: member.user_id,
+              label: member.nombre,
+              leading: <UserAvatar nombre={member.nombre} avatarUrl={member.avatar_url} className="size-5" />,
+            })),
         ]}
         onChange={(asignado) => setFilters({ ...filters, asignado })}
       />

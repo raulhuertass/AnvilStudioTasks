@@ -2,7 +2,7 @@
 
 import { Loader2Icon, PlusIcon } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { FieldSelect, NONE } from "@/components/field-select";
+import { FieldSelect } from "@/components/field-select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PRIORITIES, TYPES } from "@/lib/issue-meta";
 import type { IssuePriority, IssueType } from "@/lib/types";
+import { AssigneeSelect } from "./assignee-select";
 import { useWorkspace } from "./workspace-provider";
 
 export function CreateIssueDialog({
@@ -29,13 +30,13 @@ export function CreateIssueDialog({
   triggerLabel?: string;
   triggerVariant?: "default" | "outline" | "ghost";
 }) {
-  const { members, createIssue } = useWorkspace();
+  const { createIssue } = useWorkspace();
   const [open, setOpen] = useState(false);
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [tipo, setTipo] = useState<IssueType>("tarea");
   const [prioridad, setPrioridad] = useState<IssuePriority>("media");
-  const [assignee, setAssignee] = useState(NONE);
+  const [assignees, setAssignees] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,7 +49,7 @@ export function CreateIssueDialog({
       descripcion: descripcion.trim() || null,
       tipo,
       prioridad,
-      assignee_id: assignee === NONE ? null : assignee,
+      assignee_ids: assignees,
       sprint_id: sprintId,
     });
     setSaving(false);
@@ -60,7 +61,7 @@ export function CreateIssueDialog({
     setDescripcion("");
     setTipo("tarea");
     setPrioridad("media");
-    setAssignee(NONE);
+    setAssignees([]);
     setOpen(false);
   }
 
@@ -113,15 +114,7 @@ export function CreateIssueDialog({
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="issue-asignado">Asignado</Label>
-            <FieldSelect
-              id="issue-asignado"
-              value={assignee}
-              options={[
-                { value: NONE, label: "Sin asignar" },
-                ...members.map((member) => ({ value: member.user_id, label: member.nombre })),
-              ]}
-              onChange={setAssignee}
-            />
+            <AssigneeSelect id="issue-asignado" value={assignees} onChange={setAssignees} />
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="issue-descripcion">Descripción (markdown, opcional)</Label>

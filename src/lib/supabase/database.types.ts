@@ -53,9 +53,41 @@ export type Database = {
           },
         ];
       };
+      issue_assignees: {
+        Row: {
+          issue_id: string;
+          project_id: string;
+          user_id: string;
+        };
+        Insert: {
+          issue_id: string;
+          project_id: string;
+          user_id: string;
+        };
+        Update: {
+          issue_id?: string;
+          project_id?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "issue_assignees_issue_id_project_id_fkey";
+            columns: ["issue_id", "project_id"];
+            isOneToOne: false;
+            referencedRelation: "issues";
+            referencedColumns: ["id", "project_id"];
+          },
+          {
+            foreignKeyName: "issue_assignees_project_id_user_id_fkey";
+            columns: ["project_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "project_members";
+            referencedColumns: ["project_id", "user_id"];
+          },
+        ];
+      };
       issues: {
         Row: {
-          assignee_id: string | null;
           created_at: string;
           descripcion: string | null;
           estado: Database["public"]["Enums"]["issue_status"];
@@ -71,7 +103,6 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
-          assignee_id?: string | null;
           created_at?: string;
           descripcion?: string | null;
           estado?: Database["public"]["Enums"]["issue_status"];
@@ -87,7 +118,6 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
-          assignee_id?: string | null;
           created_at?: string;
           descripcion?: string | null;
           estado?: Database["public"]["Enums"]["issue_status"];
@@ -103,13 +133,6 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [
-          {
-            foreignKeyName: "issues_project_id_assignee_id_fkey";
-            columns: ["project_id", "assignee_id"];
-            isOneToOne: false;
-            referencedRelation: "project_members";
-            referencedColumns: ["project_id", "user_id"];
-          },
           {
             foreignKeyName: "issues_project_id_fkey";
             columns: ["project_id"];

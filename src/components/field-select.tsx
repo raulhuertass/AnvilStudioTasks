@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   Select,
   SelectContent,
@@ -12,7 +13,7 @@ import { cn } from "@/lib/utils";
 /** Valor interno para representar null, que Select no admite como opción. */
 export const NONE = "__none__";
 
-export type FieldOption = { value: string; label: string };
+export type FieldOption = { value: string; label: string; leading?: ReactNode };
 
 export function FieldSelect({
   id,
@@ -48,6 +49,7 @@ export function FieldSelect({
       <SelectContent>
         {options.map((option) => (
           <SelectItem key={option.value} value={option.value}>
+            {option.leading}
             {option.label}
           </SelectItem>
         ))}
