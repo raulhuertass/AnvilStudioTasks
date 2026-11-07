@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { AnvilLogo } from "@/components/anvil-logo";
+import { InstallAppButton } from "@/components/install-app-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserMenu } from "@/components/user-menu";
@@ -14,6 +15,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <span className="truncate">Anvil Studio Tasks</span>
         </Link>
         <div className="flex items-center gap-1">
+          <InstallAppButton />
           <ThemeToggle />
           <Suspense fallback={<Skeleton className="size-7 rounded-full" />}>
             <UserMenu />
