@@ -15,13 +15,25 @@ import { issueKey, PRIORITIES, STATUSES, TYPES } from "@/lib/issue-meta";
 import type { Issue, IssuePriority, IssueStatus, IssueType } from "@/lib/types";
 import { AssigneeSelect } from "./assignee-select";
 import { IssueComments } from "./issue-comments";
+import { IssueSubtasks } from "./issue-subtasks";
 import { useWorkspace } from "./workspace-provider";
 
 const dateFormat = new Intl.DateTimeFormat("es-ES", { dateStyle: "medium", timeStyle: "short" });
 
 function IssueDetail({ issue }: { issue: Issue }) {
-  const { project, members, sprints, updateIssue, deleteIssue, assigneeIdsOf, setIssueAssignees } =
-    useWorkspace();
+  const {
+    project,
+    members,
+    sprints,
+    updateIssue,
+    deleteIssue,
+    assigneeIdsOf,
+    setIssueAssignees,
+    issueById,
+    subtasksOf,
+    openIssue,
+  } = useWorkspace();
+  const parent = issue.parent_id ? (issueById.get(issue.parent_id) ?? null) : null;
   // null = sin editar: se muestra el valor guardado, que puede cambiar en tiempo real.
   const [tituloDraft, setTituloDraft] = useState<string | null>(null);
   const [descripcionDraft, setDescripcionDraft] = useState<string | null>(null);
@@ -54,7 +66,12 @@ function IssueDetail({ issue }: { issue: Issue }) {
   }
 
   async function remove() {
-    if (!window.confirm(`¿Eliminar ${issueKey(project.clave, issue)}? No se puede deshacer.`)) return;
+    const count = subtasksOf(issue.id).length;
+    const extra =
+      count === 0 ? "" : ` También se borrarán sus ${count === 1 ? "subtarea" : `${count} subtareas`}.`;
+    if (!window.confirm(`¿Eliminar ${issueKey(project.clave, issue)}?${extra} No se puede deshacer.`)) {
+      return;
+    }
     setDeleting(true);
     const deleted = await deleteIssue(issue.id);
     if (!deleted) setDeleting(false);
@@ -62,6 +79,18 @@ function IssueDetail({ issue }: { issue: Issue }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pb-6">
+      {parent && (
+        <p className="text-sm text-muted-foreground">
+          Subtarea de{" "}
+          <button
+            type="button"
+            onClick={() => openIssue(parent.id)}
+            className="rounded-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          >
+            {issueKey(project.clave, parent)} {parent.titulo}
+          </button>
+        </p>
+      )}
       <div className="flex flex-col gap-2">
         <Label htmlFor="detail-titulo">Título</Label>
         <Input
@@ -89,12 +118,20 @@ function IssueDetail({ issue }: { issue: Issue }) {
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="detail-sprint">Sprint</Label>
-          <FieldSelect
-            id="detail-sprint"
-            value={issue.sprint_id ?? NONE}
-            options={sprintOptions}
-            onChange={(next) => updateIssue(issue.id, { sprint_id: next === NONE ? null : next })}
-          />
+          {parent ? (
+            // La subtarea siempre está en el sprint de su padre.
+            <p id="detail-sprint" className="flex h-8 items-center text-sm text-muted-foreground">
+              {sprints.find((sprint) => sprint.id === issue.sprint_id)?.nombre ?? "Backlog"} (el de la
+              tarea padre)
+            </p>
+          ) : (
+            <FieldSelect
+              id="detail-sprint"
+              value={issue.sprint_id ?? NONE}
+              options={sprintOptions}
+              onChange={(next) => updateIssue(issue.id, { sprint_id: next === NONE ? null : next })}
+            />
+          )}
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="detail-tipo">Tipo</Label>
@@ -165,6 +202,13 @@ function IssueDetail({ issue }: { issue: Issue }) {
         <dt>Actualizada</dt>
         <dd>{dateFormat.format(new Date(issue.updated_at))}</dd>
       </dl>
+
+      {!parent && (
+        <>
+          <Separator />
+          <IssueSubtasks parent={issue} />
+        </>
+      )}
 
       <Separator />
       <IssueComments key={issue.id} issueId={issue.id} />

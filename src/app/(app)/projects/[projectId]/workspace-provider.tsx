@@ -48,6 +48,7 @@ type IssueUpdate = Pick<
 >;
 
 const NO_ASSIGNEES: string[] = [];
+const NO_ISSUES: Issue[] = [];
 
 export type NewIssue = {
   titulo: string;
@@ -56,6 +57,7 @@ export type NewIssue = {
   prioridad: Issue["prioridad"];
   assignee_ids: string[];
   sprint_id: string | null;
+  parent_id?: string | null;
 };
 
 export type NewSprint = {
@@ -74,6 +76,8 @@ type WorkspaceValue = WorkspaceData & {
   updateIssues: (changes: { id: string; patch: IssueUpdate }[]) => Promise<boolean>;
   deleteIssue: (id: string) => Promise<boolean>;
   assigneeIdsOf: (issueId: string) => string[];
+  issueById: Map<string, Issue>;
+  subtasksOf: (issueId: string) => Issue[];
   setIssueAssignees: (issueId: string, next: string[]) => Promise<void>;
   createSprint: (input: NewSprint) => Promise<string | null>;
   startSprint: (id: string) => Promise<void>;
@@ -129,6 +133,22 @@ export function WorkspaceProvider({
   const assigneeIdsOf = useCallback(
     (issueId: string) => assigneesByIssue.get(issueId) ?? NO_ASSIGNEES,
     [assigneesByIssue],
+  );
+
+  const issueById = useMemo(() => new Map(issues.map((issue) => [issue.id, issue])), [issues]);
+
+  const subtasksByParent = useMemo(() => {
+    const byParent = new Map<string, Issue[]>();
+    issues.forEach((issue) => {
+      if (issue.parent_id) byParent.set(issue.parent_id, [...(byParent.get(issue.parent_id) ?? []), issue]);
+    });
+    byParent.forEach((list) => list.sort((a, b) => a.numero - b.numero));
+    return byParent;
+  }, [issues]);
+
+  const subtasksOf = useCallback(
+    (issueId: string) => subtasksByParent.get(issueId) ?? NO_ISSUES,
+    [subtasksByParent],
   );
 
   const visibleIssues = useMemo(
@@ -271,7 +291,17 @@ export function WorkspaceProvider({
       }
 
       const saved = new Map(results.map((result) => [result.data!.id, result.data!]));
-      setIssues((current) => current.map((issue) => saved.get(issue.id) ?? issue));
+      setIssues((current) =>
+        current.map((issue) => {
+          const own = saved.get(issue.id);
+          if (own) return own;
+          // La base de datos mueve las subtareas al sprint de su padre.
+          const parent = issue.parent_id ? saved.get(issue.parent_id) : undefined;
+          return parent && parent.sprint_id !== issue.sprint_id
+            ? { ...issue, sprint_id: parent.sprint_id }
+            : issue;
+        }),
+      );
       return true;
     },
     [supabase],
@@ -289,7 +319,8 @@ export function WorkspaceProvider({
         toast.error(friendlyError(error, "No se ha podido eliminar la tarea."));
         return false;
       }
-      setIssues((current) => current.filter((issue) => issue.id !== id));
+      // La base de datos borra también sus subtareas.
+      setIssues((current) => current.filter((issue) => issue.id !== id && issue.parent_id !== id));
       openIssue((current) => (current === id ? null : current));
       return true;
     },
@@ -497,6 +528,8 @@ export function WorkspaceProvider({
       issues,
       assignees,
       assigneeIdsOf,
+      issueById,
+      subtasksOf,
       setIssueAssignees,
       isAdmin,
       activeSprint,
@@ -528,6 +561,8 @@ export function WorkspaceProvider({
       issues,
       assignees,
       assigneeIdsOf,
+      issueById,
+      subtasksOf,
       setIssueAssignees,
       isAdmin,
       activeSprint,

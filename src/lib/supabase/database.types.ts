@@ -93,6 +93,7 @@ export type Database = {
           estado: Database["public"]["Enums"]["issue_status"];
           id: string;
           numero: number;
+          parent_id: string | null;
           posicion: number;
           prioridad: Database["public"]["Enums"]["issue_priority"];
           project_id: string;
@@ -108,6 +109,7 @@ export type Database = {
           estado?: Database["public"]["Enums"]["issue_status"];
           id?: string;
           numero?: number;
+          parent_id?: string | null;
           posicion?: number;
           prioridad?: Database["public"]["Enums"]["issue_priority"];
           project_id: string;

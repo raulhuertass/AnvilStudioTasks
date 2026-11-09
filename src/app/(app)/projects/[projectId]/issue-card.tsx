@@ -6,16 +6,25 @@ import { issueKey, priorityMeta, typeMeta } from "@/lib/issue-meta";
 import type { Issue } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { AssigneeAvatars } from "./assignee-avatars";
+import { SubtaskProgress } from "./subtask-progress";
 import { useWorkspace } from "./workspace-provider";
 
 export function IssueCardContent({ issue, onOpen }: { issue: Issue; onOpen?: () => void }) {
-  const { project } = useWorkspace();
+  const { project, issueById, subtasksOf } = useWorkspace();
   const type = typeMeta(issue.tipo);
   const priority = priorityMeta(issue.prioridad);
   const key = issueKey(project.clave, issue);
+  const parent = issue.parent_id ? issueById.get(issue.parent_id) : undefined;
+  const subtasks = subtasksOf(issue.id);
+  const done = subtasks.filter((subtask) => subtask.estado === "hecho").length;
 
   return (
     <>
+      {parent && (
+        <p className="mb-1 truncate text-xs text-muted-foreground" title={parent.titulo}>
+          ↳ Subtarea de {issueKey(project.clave, parent)}
+        </p>
+      )}
       {onOpen ? (
         <button
           type="button"
@@ -38,6 +47,7 @@ export function IssueCardContent({ issue, onOpen }: { issue: Issue; onOpen?: () 
           />
         </span>
         <span className="text-xs text-muted-foreground">{key}</span>
+        {subtasks.length > 0 && <SubtaskProgress done={done} total={subtasks.length} />}
         <span className="ml-auto">
           <AssigneeAvatars issueId={issue.id} />
         </span>

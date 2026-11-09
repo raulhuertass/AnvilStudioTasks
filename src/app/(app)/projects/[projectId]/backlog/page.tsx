@@ -11,10 +11,12 @@ import { cn } from "@/lib/utils";
 import { AssigneeAvatars } from "../assignee-avatars";
 import { CreateIssueDialog } from "../create-issue-dialog";
 import { CreateSprintDialog } from "../create-sprint-dialog";
+import { SubtaskProgress } from "../subtask-progress";
 import { useWorkspace } from "../workspace-provider";
 
 function IssueRow({ issue, moveOptions }: { issue: Issue; moveOptions: { value: string; label: string }[] }) {
-  const { project, updateIssue, openIssue } = useWorkspace();
+  const { project, updateIssue, openIssue, subtasksOf } = useWorkspace();
+  const subtasks = subtasksOf(issue.id);
   const type = typeMeta(issue.tipo);
   const priority = priorityMeta(issue.prioridad);
   const key = issueKey(project.clave, issue);
@@ -33,6 +35,12 @@ function IssueRow({ issue, moveOptions }: { issue: Issue; moveOptions: { value: 
       >
         {issue.titulo}
       </button>
+      {subtasks.length > 0 && (
+        <SubtaskProgress
+          done={subtasks.filter((subtask) => subtask.estado === "hecho").length}
+          total={subtasks.length}
+        />
+      )}
       <Badge variant="outline">{status}</Badge>
       <span title={`Prioridad ${priority.label.toLowerCase()}`}>
         <priority.icon
@@ -150,7 +158,7 @@ export default function BacklogPage() {
   );
 
   const backlogIssues = useMemo(
-    () => issues.filter((issue) => issue.sprint_id === null).sort(byPosition),
+    () => issues.filter((issue) => issue.sprint_id === null && !issue.parent_id).sort(byPosition),
     [issues],
   );
 
@@ -161,7 +169,9 @@ export default function BacklogPage() {
       </div>
 
       {openSprints.map((sprint) => {
-        const sprintIssues = issues.filter((issue) => issue.sprint_id === sprint.id).sort(byPosition);
+        const sprintIssues = issues
+          .filter((issue) => issue.sprint_id === sprint.id && !issue.parent_id)
+          .sort(byPosition);
         return (
           <section key={sprint.id} className="flex flex-col gap-3" aria-label={sprint.nombre}>
             <div className="flex flex-wrap items-center gap-2">
