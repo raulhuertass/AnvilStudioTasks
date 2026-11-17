@@ -6,6 +6,7 @@ import { issueKey, priorityMeta, typeMeta } from "@/lib/issue-meta";
 import type { Issue } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { AssigneeAvatars } from "./assignee-avatars";
+import { IssueLabelChips } from "./label-chips";
 import { SubtaskProgress } from "./subtask-progress";
 import { useWorkspace } from "./workspace-provider";
 
@@ -36,6 +37,9 @@ export function IssueCardContent({ issue, onOpen }: { issue: Issue; onOpen?: () 
       ) : (
         <p className="line-clamp-3 text-sm font-medium">{issue.titulo}</p>
       )}
+      <div className="mt-1.5 empty:hidden">
+        <IssueLabelChips issueId={issue.id} />
+      </div>
       <div className="mt-2 flex items-center gap-2">
         <span title={type.label}>
           <type.icon className={cn("size-4", type.className)} aria-label={type.label} />

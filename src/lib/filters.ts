@@ -9,6 +9,7 @@ export type IssueFilters = {
   asignado: string;
   tipo: IssueType | typeof ALL;
   prioridad: IssuePriority | typeof ALL;
+  etiqueta: string;
 };
 
 export const EMPTY_FILTERS: IssueFilters = {
@@ -16,6 +17,7 @@ export const EMPTY_FILTERS: IssueFilters = {
   asignado: ALL,
   tipo: ALL,
   prioridad: ALL,
+  etiqueta: ALL,
 };
 
 function normalize(value: string) {
@@ -30,16 +32,19 @@ export function hasActiveFilters(filters: IssueFilters) {
     filters.texto.trim() !== "" ||
     filters.asignado !== ALL ||
     filters.tipo !== ALL ||
-    filters.prioridad !== ALL
+    filters.prioridad !== ALL ||
+    filters.etiqueta !== ALL
   );
 }
 
 export function matchesFilters(
   issue: Issue,
   assigneeIds: string[],
+  labelIds: string[],
   filters: IssueFilters,
   clave: string,
 ) {
+  if (filters.etiqueta !== ALL && !labelIds.includes(filters.etiqueta)) return false;
   if (filters.tipo !== ALL && issue.tipo !== filters.tipo) return false;
   if (filters.prioridad !== ALL && issue.prioridad !== filters.prioridad) return false;
   if (filters.asignado === UNASSIGNED && assigneeIds.length > 0) return false;

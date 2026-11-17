@@ -16,6 +16,7 @@ import type { Issue, IssuePriority, IssueStatus, IssueType } from "@/lib/types";
 import { AssigneeSelect } from "./assignee-select";
 import { IssueComments } from "./issue-comments";
 import { IssueSubtasks } from "./issue-subtasks";
+import { LabelSelect } from "./label-select";
 import { useWorkspace } from "./workspace-provider";
 
 const dateFormat = new Intl.DateTimeFormat("es-ES", { dateStyle: "medium", timeStyle: "short" });
@@ -32,6 +33,8 @@ function IssueDetail({ issue }: { issue: Issue }) {
     issueById,
     subtasksOf,
     openIssue,
+    labelIdsOf,
+    setIssueLabelIds,
   } = useWorkspace();
   const parent = issue.parent_id ? (issueById.get(issue.parent_id) ?? null) : null;
   // null = sin editar: se muestra el valor guardado, que puede cambiar en tiempo real.
@@ -157,6 +160,14 @@ function IssueDetail({ issue }: { issue: Issue }) {
             id="detail-asignado"
             value={assigneeIdsOf(issue.id)}
             onChange={(next) => setIssueAssignees(issue.id, next)}
+          />
+        </div>
+        <div className="col-span-2 flex flex-col gap-2">
+          <Label htmlFor="detail-etiquetas">Etiquetas</Label>
+          <LabelSelect
+            id="detail-etiquetas"
+            value={labelIdsOf(issue.id)}
+            onChange={(next) => setIssueLabelIds(issue.id, next)}
           />
         </div>
       </div>

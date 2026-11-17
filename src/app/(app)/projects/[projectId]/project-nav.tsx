@@ -13,6 +13,7 @@ export function ProjectNav() {
   const links = [
     { href: base, label: "Tablero" },
     { href: `${base}/backlog`, label: "Backlog" },
+    { href: `${base}/etiquetas`, label: "Etiquetas" },
     { href: `${base}/miembros`, label: "Miembros" },
   ];
 
@@ -49,7 +50,7 @@ export function ProjectNav() {
           })}
         </nav>
       </div>
-      {pathname !== `${base}/miembros` && <FilterBar />}
+      {(pathname === base || pathname === `${base}/backlog`) && <FilterBar />}
     </>
   );
 }

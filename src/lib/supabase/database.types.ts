@@ -86,6 +86,48 @@ export type Database = {
           },
         ];
       };
+      issue_labels: {
+        Row: {
+          issue_id: string;
+          label_id: string;
+          project_id: string;
+        };
+        Insert: {
+          issue_id: string;
+          label_id: string;
+          project_id: string;
+        };
+        Update: {
+          issue_id?: string;
+          label_id?: string;
+          project_id?: string;
+        };
+        Relationships: [];
+      };
+      labels: {
+        Row: {
+          color: string;
+          created_at: string;
+          id: string;
+          nombre: string;
+          project_id: string;
+        };
+        Insert: {
+          color?: string;
+          created_at?: string;
+          id?: string;
+          nombre: string;
+          project_id: string;
+        };
+        Update: {
+          color?: string;
+          created_at?: string;
+          id?: string;
+          nombre?: string;
+          project_id?: string;
+        };
+        Relationships: [];
+      };
       issues: {
         Row: {
           created_at: string;

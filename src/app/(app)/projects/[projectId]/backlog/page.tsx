@@ -10,6 +10,7 @@ import type { Issue, Sprint } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { AssigneeAvatars } from "../assignee-avatars";
 import { CreateIssueDialog } from "../create-issue-dialog";
+import { IssueLabelChips } from "../label-chips";
 import { CreateSprintDialog } from "../create-sprint-dialog";
 import { SubtaskProgress } from "../subtask-progress";
 import { useWorkspace } from "../workspace-provider";
@@ -41,6 +42,7 @@ function IssueRow({ issue, moveOptions }: { issue: Issue; moveOptions: { value: 
           total={subtasks.length}
         />
       )}
+      <IssueLabelChips issueId={issue.id} />
       <Badge variant="outline">{status}</Badge>
       <span title={`Prioridad ${priority.label.toLowerCase()}`}>
         <priority.icon

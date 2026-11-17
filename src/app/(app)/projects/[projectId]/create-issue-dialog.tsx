@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { PRIORITIES, TYPES } from "@/lib/issue-meta";
 import type { IssuePriority, IssueType } from "@/lib/types";
 import { AssigneeSelect } from "./assignee-select";
+import { LabelSelect } from "./label-select";
 import { useWorkspace } from "./workspace-provider";
 
 export function CreateIssueDialog({
@@ -37,6 +38,7 @@ export function CreateIssueDialog({
   const [tipo, setTipo] = useState<IssueType>("tarea");
   const [prioridad, setPrioridad] = useState<IssuePriority>("media");
   const [assignees, setAssignees] = useState<string[]>([]);
+  const [labelIds, setLabelIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,6 +52,7 @@ export function CreateIssueDialog({
       tipo,
       prioridad,
       assignee_ids: assignees,
+      label_ids: labelIds,
       sprint_id: sprintId,
     });
     setSaving(false);
@@ -62,6 +65,7 @@ export function CreateIssueDialog({
     setTipo("tarea");
     setPrioridad("media");
     setAssignees([]);
+    setLabelIds([]);
     setOpen(false);
   }
 
@@ -115,6 +119,10 @@ export function CreateIssueDialog({
           <div className="flex flex-col gap-2">
             <Label htmlFor="issue-asignado">Asignado</Label>
             <AssigneeSelect id="issue-asignado" value={assignees} onChange={setAssignees} />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="issue-etiquetas">Etiquetas</Label>
+            <LabelSelect id="issue-etiquetas" value={labelIds} onChange={setLabelIds} />
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="issue-descripcion">Descripción (markdown, opcional)</Label>

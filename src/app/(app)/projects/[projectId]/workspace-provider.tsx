@@ -27,6 +27,8 @@ import {
   type Invitation,
   type Issue,
   type IssueAssignee,
+  type IssueLabel,
+  type Label,
   type Member,
   type Project,
   type Sprint,
@@ -40,6 +42,8 @@ export type WorkspaceData = {
   sprints: Sprint[];
   issues: Issue[];
   assignees: IssueAssignee[];
+  labels: Label[];
+  issueLabels: IssueLabel[];
 };
 
 type IssueUpdate = Pick<
@@ -48,7 +52,13 @@ type IssueUpdate = Pick<
 >;
 
 const NO_ASSIGNEES: string[] = [];
+const NO_IDS: string[] = [];
 const NO_ISSUES: Issue[] = [];
+const NO_LABELS: Label[] = [];
+
+function sortLabels(list: Label[]) {
+  return [...list].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+}
 
 export type NewIssue = {
   titulo: string;
@@ -58,6 +68,7 @@ export type NewIssue = {
   assignee_ids: string[];
   sprint_id: string | null;
   parent_id?: string | null;
+  label_ids?: string[];
 };
 
 export type NewSprint = {
@@ -79,6 +90,12 @@ type WorkspaceValue = WorkspaceData & {
   issueById: Map<string, Issue>;
   subtasksOf: (issueId: string) => Issue[];
   setIssueAssignees: (issueId: string, next: string[]) => Promise<void>;
+  labelIdsOf: (issueId: string) => string[];
+  labelsOf: (issueId: string) => Label[];
+  setIssueLabelIds: (issueId: string, next: string[]) => Promise<void>;
+  createLabel: (nombre: string, color: string) => Promise<{ label?: Label; error?: string }>;
+  updateLabel: (id: string, patch: { nombre?: string; color?: string }) => Promise<boolean>;
+  deleteLabel: (id: string) => Promise<void>;
   createSprint: (input: NewSprint) => Promise<string | null>;
   startSprint: (id: string) => Promise<void>;
   closeSprint: (id: string) => Promise<void>;
@@ -115,6 +132,8 @@ export function WorkspaceProvider({
   const [sprints, setSprints] = useState(initial.sprints);
   const [issues, setIssues] = useState(initial.issues);
   const [assignees, setAssignees] = useState(initial.assignees);
+  const [labels, setLabels] = useState(() => sortLabels(initial.labels));
+  const [issueLabels, setIssueLabels] = useState(initial.issueLabels);
   const [selectedIssueId, openIssue] = useState<string | null>(null);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [connectionLost, setConnectionLost] = useState(false);
@@ -151,12 +170,33 @@ export function WorkspaceProvider({
     [subtasksByParent],
   );
 
+  const labelsByIssue = useMemo(() => {
+    const byIssue = new Map<string, string[]>();
+    issueLabels.forEach(({ issue_id, label_id }) => {
+      byIssue.set(issue_id, [...(byIssue.get(issue_id) ?? []), label_id]);
+    });
+    return byIssue;
+  }, [issueLabels]);
+
+  const labelIdsOf = useCallback(
+    (issueId: string) => labelsByIssue.get(issueId) ?? NO_IDS,
+    [labelsByIssue],
+  );
+
+  const labelsOf = useCallback(
+    (issueId: string) => {
+      const ids = labelsByIssue.get(issueId);
+      return ids ? labels.filter((label) => ids.includes(label.id)) : NO_LABELS;
+    },
+    [labelsByIssue, labels],
+  );
+
   const visibleIssues = useMemo(
     () =>
       issues.filter((issue) =>
-        matchesFilters(issue, assigneeIdsOf(issue.id), filters, project.clave),
+        matchesFilters(issue, assigneeIdsOf(issue.id), labelIdsOf(issue.id), filters, project.clave),
       ),
-    [issues, assigneeIdsOf, filters, project.clave],
+    [issues, assigneeIdsOf, labelIdsOf, filters, project.clave],
   );
 
   const isAdmin = members.some((m) => m.user_id === currentUserId && m.rol === "admin");
@@ -172,19 +212,24 @@ export function WorkspaceProvider({
   }, [supabase, project.id]);
 
   const refreshAll = useCallback(async () => {
-    const [sprintsResult, issuesResult, assigneesResult] = await Promise.all([
-      supabase.from("sprints").select("*").eq("project_id", project.id),
-      supabase.from("issues").select("*").eq("project_id", project.id),
-      supabase.from("issue_assignees").select("*").eq("project_id", project.id),
-    ]);
+    const [sprintsResult, issuesResult, assigneesResult, labelsResult, issueLabelsResult] =
+      await Promise.all([
+        supabase.from("sprints").select("*").eq("project_id", project.id),
+        supabase.from("issues").select("*").eq("project_id", project.id),
+        supabase.from("issue_assignees").select("*").eq("project_id", project.id),
+        supabase.from("labels").select("*").eq("project_id", project.id),
+        supabase.from("issue_labels").select("*").eq("project_id", project.id),
+      ]);
     if (sprintsResult.data) setSprints(sprintsResult.data);
     if (issuesResult.data) setIssues(issuesResult.data);
     if (assigneesResult.data) setAssignees(assigneesResult.data);
+    if (labelsResult.data) setLabels(sortLabels(labelsResult.data));
+    if (issueLabelsResult.data) setIssueLabels(issueLabelsResult.data);
     await refreshMembers();
   }, [supabase, project.id, refreshMembers]);
 
   const createIssue = useCallback(
-    async ({ assignee_ids, ...input }: NewIssue) => {
+    async ({ assignee_ids, label_ids, ...input }: NewIssue) => {
       const { data, error } = await supabase
         .from("issues")
         .insert({ ...input, project_id: project.id })
@@ -212,6 +257,28 @@ export function WorkspaceProvider({
               (row) =>
                 !current.some(
                   (item) => item.issue_id === row.issue_id && item.user_id === row.user_id,
+                ),
+            ),
+          ]);
+        }
+      }
+
+      if (label_ids && label_ids.length > 0) {
+        const rows = label_ids.map((label_id) => ({
+          issue_id: data.id,
+          label_id,
+          project_id: project.id,
+        }));
+        const { error: labelError } = await supabase.from("issue_labels").insert(rows);
+        if (labelError) {
+          toast.error("La tarea se ha creado, pero no se han podido añadir las etiquetas.");
+        } else {
+          setIssueLabels((current) => [
+            ...current,
+            ...rows.filter(
+              (row) =>
+                !current.some(
+                  (item) => item.issue_id === row.issue_id && item.label_id === row.label_id,
                 ),
             ),
           ]);
@@ -261,6 +328,97 @@ export function WorkspaceProvider({
       }
     },
     [supabase, project.id, assigneesByIssue],
+  );
+
+  const setIssueLabelIds = useCallback(
+    async (issueId: string, next: string[]) => {
+      const previous = labelsByIssue.get(issueId) ?? NO_IDS;
+      const added = next.filter((labelId) => !previous.includes(labelId));
+      const removed = previous.filter((labelId) => !next.includes(labelId));
+      if (added.length === 0 && removed.length === 0) return;
+
+      setIssueLabels((current) => [
+        ...current.filter((item) => item.issue_id !== issueId),
+        ...next.map((label_id) => ({ issue_id: issueId, label_id, project_id: project.id })),
+      ]);
+
+      const results = await Promise.all([
+        added.length > 0
+          ? supabase.from("issue_labels").insert(
+              added.map((label_id) => ({ issue_id: issueId, label_id, project_id: project.id })),
+            )
+          : null,
+        removed.length > 0
+          ? supabase.from("issue_labels").delete().eq("issue_id", issueId).in("label_id", removed)
+          : null,
+      ]);
+
+      const failure = results.find((result) => result?.error)?.error;
+      if (failure) {
+        toast.error(friendlyError(failure, "No se han podido cambiar las etiquetas."));
+        const { data } = await supabase.from("issue_labels").select("*").eq("project_id", project.id);
+        if (data) setIssueLabels(data);
+      }
+    },
+    [supabase, project.id, labelsByIssue],
+  );
+
+  const createLabel = useCallback(
+    async (nombre: string, color: string) => {
+      const { data, error } = await supabase
+        .from("labels")
+        .insert({ project_id: project.id, nombre: nombre.trim(), color })
+        .select("*")
+        .single();
+      if (error) {
+        return {
+          error:
+            error.code === "23505"
+              ? "Ya existe una etiqueta con ese nombre."
+              : friendlyError(error, "No se ha podido crear la etiqueta."),
+        };
+      }
+      setLabels((current) =>
+        current.some((item) => item.id === data.id) ? current : sortLabels([...current, data]),
+      );
+      return { label: data };
+    },
+    [supabase, project.id],
+  );
+
+  const updateLabel = useCallback(
+    async (id: string, patch: { nombre?: string; color?: string }) => {
+      const { data, error } = await supabase
+        .from("labels")
+        .update(patch)
+        .eq("id", id)
+        .select("*")
+        .single();
+      if (error) {
+        toast.error(
+          error.code === "23505"
+            ? "Ya existe una etiqueta con ese nombre."
+            : friendlyError(error, "No se ha podido cambiar la etiqueta."),
+        );
+        return false;
+      }
+      setLabels((current) => sortLabels(current.map((item) => (item.id === id ? data : item))));
+      return true;
+    },
+    [supabase],
+  );
+
+  const deleteLabel = useCallback(
+    async (id: string) => {
+      const { error } = await supabase.from("labels").delete().eq("id", id);
+      if (error) {
+        toast.error(friendlyError(error, "No se ha podido eliminar la etiqueta."));
+        return;
+      }
+      setLabels((current) => current.filter((item) => item.id !== id));
+      setIssueLabels((current) => current.filter((item) => item.label_id !== id));
+    },
+    [supabase],
   );
 
   // Aplica el cambio al momento y lo deshace si la base de datos lo rechaza.
@@ -459,6 +617,45 @@ export function WorkspaceProvider({
       })
       .on(
         "postgres_changes",
+        { event: "INSERT", schema: "public", table: "labels", filter: byProject },
+        ({ new: row }) => {
+          const label = row as Label;
+          setLabels((current) =>
+            current.some((item) => item.id === label.id) ? current : sortLabels([...current, label]),
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "labels", filter: byProject },
+        ({ new: row }) => {
+          const label = row as Label;
+          setLabels((current) => sortLabels(current.map((item) => (item.id === label.id ? label : item))));
+        },
+      )
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "labels" }, ({ old }) => {
+        setLabels((current) => current.filter((item) => item.id !== old.id));
+        setIssueLabels((current) => current.filter((item) => item.label_id !== old.id));
+      })
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "issue_labels", filter: byProject },
+        ({ new: row }) => {
+          const link = row as IssueLabel;
+          setIssueLabels((current) =>
+            current.some((item) => item.issue_id === link.issue_id && item.label_id === link.label_id)
+              ? current
+              : [...current, link],
+          );
+        },
+      )
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "issue_labels" }, ({ old }) => {
+        setIssueLabels((current) =>
+          current.filter((item) => item.issue_id !== old.issue_id || item.label_id !== old.label_id),
+        );
+      })
+      .on(
+        "postgres_changes",
         { event: "INSERT", schema: "public", table: "sprints", filter: byProject },
         ({ new: row }) => {
           const sprint = row as Sprint;
@@ -530,6 +727,14 @@ export function WorkspaceProvider({
       assigneeIdsOf,
       issueById,
       subtasksOf,
+      labels,
+      issueLabels,
+      labelIdsOf,
+      labelsOf,
+      setIssueLabelIds,
+      createLabel,
+      updateLabel,
+      deleteLabel,
       setIssueAssignees,
       isAdmin,
       activeSprint,
@@ -563,6 +768,14 @@ export function WorkspaceProvider({
       assigneeIdsOf,
       issueById,
       subtasksOf,
+      labels,
+      issueLabels,
+      labelIdsOf,
+      labelsOf,
+      setIssueLabelIds,
+      createLabel,
+      updateLabel,
+      deleteLabel,
       setIssueAssignees,
       isAdmin,
       activeSprint,

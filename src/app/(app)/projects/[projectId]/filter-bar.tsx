@@ -7,10 +7,12 @@ import { Input } from "@/components/ui/input";
 import { UserAvatar } from "@/components/user-avatar";
 import { ALL, EMPTY_FILTERS, UNASSIGNED, type IssueFilters } from "@/lib/filters";
 import { PRIORITIES, TYPES } from "@/lib/issue-meta";
+import { labelColor } from "@/lib/labels";
+import { cn } from "@/lib/utils";
 import { useWorkspace } from "./workspace-provider";
 
 export function FilterBar() {
-  const { members, filters, setFilters, filtersActive } = useWorkspace();
+  const { members, labels, filters, setFilters, filtersActive } = useWorkspace();
 
   return (
     <div
@@ -65,6 +67,22 @@ export function FilterBar() {
           setFilters({ ...filters, prioridad: prioridad as IssueFilters["prioridad"] })
         }
       />
+      {labels.length > 0 && (
+        <FieldSelect
+          label="Filtrar por etiqueta"
+          className="sm:w-44"
+          value={filters.etiqueta}
+          options={[
+            { value: ALL, label: "Cualquier etiqueta" },
+            ...labels.map((label) => ({
+              value: label.id,
+              label: label.nombre,
+              leading: <span className={cn("size-2.5 shrink-0 rounded-full", labelColor(label.color).dot)} />,
+            })),
+          ]}
+          onChange={(etiqueta) => setFilters({ ...filters, etiqueta })}
+        />
+      )}
       {filtersActive && (
         <Button variant="ghost" size="sm" onClick={() => setFilters(EMPTY_FILTERS)}>
           <XIcon aria-hidden />
